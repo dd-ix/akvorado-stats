@@ -10,8 +10,8 @@ import os
 import datetime
 import configparser
 
-def dir_path(string):
-    if os.path.isdir(string):
+def is_ini_file(string):
+    if os.path.exists(string):
         return string
     else:
         raise NotADirectoryError(string)
@@ -19,22 +19,20 @@ def dir_path(string):
 
 # Instantiate the parser
 parser = argparse.ArgumentParser(description='DD-IX Akvorado Stat Collector')
-parser.add_argument('--config', type=dir_path)
+parser.add_argument('--config', type=is_ini_file)
 
 parser.add_argument(
         '--starttime',
-        type=lambda s: datetime.datetime.strptime(s, type=datetime.date.fromisoformat),
+        type=lambda s: datetime.datetime.fromisoformat(s),
 )
 
 parser.add_argument(
         '--endtime',
-        type=lambda s: datetime.datetime.strptime(s, type=datetime.date.fromisoformat),
+        type=lambda s: datetime.datetime.fromisoformat(s),
 )
 
 
 args = parser.parse_args()
-
-
 config = configparser.ConfigParser()
 config.read(args.config)
 
