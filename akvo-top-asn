@@ -43,6 +43,7 @@ config = configparser.ConfigParser()
 config.read(args.config)
 
 time_range = [args.starttime, args.endtime]
+directions = ['Out', 'In']
 si_prefixes = ['', 'K', 'M', 'G']
 
 
@@ -60,48 +61,77 @@ def format_bps(n):
     return '{:.0f}{}bps'.format(n / 10**(3 * idx), si_prefixes[idx])
 
 
-# client = clickhouse_connect.get_client(host='akvorado.ibh.net', secure=True, port=443, username='default', password='password')
-client = clickhouse_connect.get_client(host='localhost')
-result = client.query(f"""
- WITH
- source AS (SELECT * FROM flows_5m0s SETTINGS asterisk_include_alias_columns = 1),
- rows AS (SELECT SrcAS FROM source WHERE TimeReceived BETWEEN toDateTime('{time_range[0]}', 'UTC') AND toDateTime('{time_range[1]}', 'UTC') AND (InIfBoundary = 'external') GROUP BY SrcAS ORDER BY SUM(Bytes) DESC LIMIT 50)
-SELECT 1 AS axis, * FROM (
-SELECT
- toStartOfInterval(TimeReceived + INTERVAL 900 second, INTERVAL 900 second) - INTERVAL 900 second AS time,
- SUM(Bytes*SamplingRate*8)/900 AS xps,
- if((SrcAS) IN rows, [concat(toString(SrcAS), ': ', dictGetOrDefault('asns', 'name', SrcAS, '???'))], ['Other']) AS dimensions
-FROM source
-WHERE TimeReceived BETWEEN toDateTime('{time_range[0]}', 'UTC') AND toDateTime('{time_range[1]}', 'UTC') AND (InIfBoundary = 'external')
-GROUP BY time, dimensions
-ORDER BY time WITH FILL
- FROM toDateTime('{time_range[0]}', 'UTC')
- TO toDateTime('{time_range[1]}', 'UTC') + INTERVAL 1 second
- STEP 900
- INTERPOLATE (dimensions AS ['Other']))
-""")
+client = clickhouse_connect.get_client(
+    host='akvorado.ibh.net/clickhouse', secure=True, port=443)
+# client = clickhouse_connect.get_client(host='localhost')
+
+
+def query_clickhouse(time_range, direction):
+    return client.query(f"""
+        WITH
+        source AS (SELECT * FROM flows_5m0s SETTINGS asterisk_include_alias_columns = 1),
+        rows AS (SELECT SrcAS FROM source WHERE TimeReceived BETWEEN toDateTime('{time_range[0]}', 'UTC') AND toDateTime('{time_range[1]}', 'UTC') AND (InIfBoundary = 'external') GROUP BY SrcAS ORDER BY SUM(Bytes) DESC LIMIT 50)
+        SELECT 1 AS axis, * FROM (
+        SELECT
+        toStartOfInterval(TimeReceived + INTERVAL 900 second, INTERVAL 900 second) - INTERVAL 900 second AS time,
+        SUM(Bytes*SamplingRate*8)/900 AS xps,
+        if((SrcAS) IN rows, [concat(toString(SrcAS), ': ', dictGetOrDefault('asns', 'name', SrcAS, '???'))], ['Other']) AS dimensions
+        FROM source
+        WHERE TimeReceived BETWEEN toDateTime('{time_range[0]}', 'UTC') AND toDateTime('{time_range[1]}', 'UTC') AND ({direction}IfBoundary = 'external')
+        GROUP BY time, dimensions
+        ORDER BY time WITH FILL
+        FROM toDateTime('{time_range[0]}', 'UTC')
+        TO toDateTime('{time_range[1]}', 'UTC') + INTERVAL 1 second
+        STEP 900
+        INTERPOLATE (dimensions AS ['Other']))
+        """).result_rows
+
 
 # build list of bandwidths per ASN
 asn_xps = {}
-for axis, ts, xps, asn in result.result_rows:
-    if asn[0] in asn_xps:
-        asn_xps[asn[0]].append(xps)
-    else:
-        asn_xps[asn[0]] = [xps]
+for direction in directions:
+    for axis, ts, xps, _asn in query_clickhouse(time_range, direction):
+        asn = _asn[0]
+        if asn in asn_xps:
+            if direction in asn_xps[asn]:
+                asn_xps[asn][direction].append(xps)
+            else:
+                asn_xps[asn][direction] = [xps]
+        else:
+            asn_xps[asn] = {
+                direction: [xps]
+            }
 
 # build stats for each ASN
 asn_stats = {}
 for asn, xps in asn_xps.items():
-    arr = np.array(xps)
+    stats = {}
+    for direction in directions:
+        d = direction.lower()
 
-    stats = {
-        'avr': np.mean(arr),
-        'p95': np.percentile(arr, 95),
-    }
+        if direction in xps:
+            arr = np.array(xps[direction])
 
-    asn_stats[asn] = namedtuple('ASNStats', stats.keys())(**stats)
+            stats[f'{d}_avg'] = np.mean(arr)
+            stats[f'{d}_p95'] = np.percentile(arr, 95)
+            stats[f'{d}_max'] = np.max(arr)
+        else:
+            stats[f'{d}_avg'] = 0
+            stats[f'{d}_p95'] = 0
+            stats[f'{d}_max'] = 0
+
+    asn_stats[asn] = stats
+
+# poor-mans table headers
+print('{asn: <42}'.format(asn='ASN'), end='')
+columns = []
+for direction in directions:
+    for metric in ['avg', 'p95', 'max']:
+        columns.append(f'{{{direction.lower()}_{metric}: >9}}')
+        print(' {metric: <9}'.format(metric=f'{direction.lower()}_{metric}'), end='')
+print()
 
 # sort & print ASN stats
-for asn, stats in sorted(asn_stats.items(), key=lambda i: i[1].p95):
-    print("{asn: <42} {avr: >8} {p95: >8}".format(
-        asn=asn, avr=format_bps(stats.avr), p95=format_bps(stats.p95)))
+for asn, stats in sorted(asn_stats.items(), key=lambda i: i[1]['out_p95'] + i[1]['in_p95']):
+    print(f'{{asn: <42}} {" ".join(columns)}'.format(
+        asn=asn, **{k: format_bps(v) for k, v in stats.items()}))
