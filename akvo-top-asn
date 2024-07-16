@@ -10,28 +10,34 @@ import os
 import datetime
 import configparser
 
-def is_ini_file(string):
-    if os.path.exists(string):
-        return string
-    else:
-        raise NotADirectoryError(string)
+
+def check_conf_filename(fn):
+    """
+    Some simple (Race condition!) config filename checks to create
+    polite error messages.
+    """
+    if not os.path.exists(fn):
+        raise argparse.ArgumentTypeError(f'{fn} does not exist')
+    if not os.path.isfile(fn):
+        raise argparse.ArgumentTypeError(f'{fn} is not a file')
+
+    return fn
 
 
 # Instantiate the parser
-parser = argparse.ArgumentParser(description='DD-IX Akvorado Stat Collector')
-parser.add_argument('--config', type=is_ini_file)
-
+parser = argparse.ArgumentParser(description='Akvorado top ASN stats')
+parser.add_argument('-c', '--config', type=check_conf_filename,
+                    default='akvo-top-asn.conf', help='configuration filename')
 parser.add_argument(
-        '--starttime',
-        type=lambda s: datetime.datetime.fromisoformat(s),
+    '--starttime',
+    type=lambda s: datetime.datetime.fromisoformat(s),
+)
+parser.add_argument(
+    '--endtime',
+    type=lambda s: datetime.datetime.fromisoformat(s),
 )
 
-parser.add_argument(
-        '--endtime',
-        type=lambda s: datetime.datetime.fromisoformat(s),
-)
-
-
+# parse config file
 args = parser.parse_args()
 config = configparser.ConfigParser()
 config.read(args.config)
@@ -41,6 +47,9 @@ si_prefixes = ['', 'K', 'M', 'G']
 
 
 def format_bps(n):
+    """
+    Format value with bps unit and SI prefix.
+    """
     idx = max(0,
               min(
                   len(si_prefixes) - 1,
@@ -86,12 +95,13 @@ for asn, xps in asn_xps.items():
     arr = np.array(xps)
 
     stats = {
-      'avr': np.mean(arr),
-      'p95': np.percentile(arr, 95),
+        'avr': np.mean(arr),
+        'p95': np.percentile(arr, 95),
     }
 
     asn_stats[asn] = namedtuple('ASNStats', stats.keys())(**stats)
 
 # sort & print ASN stats
 for asn, stats in sorted(asn_stats.items(), key=lambda i: i[1].p95):
-    print("{asn: <42} {avr: >8} {p95: >8}".format(asn=asn, avr=format_bps(stats.avr), p95=format_bps(stats.p95)))
+    print("{asn: <42} {avr: >8} {p95: >8}".format(
+        asn=asn, avr=format_bps(stats.avr), p95=format_bps(stats.p95)))
