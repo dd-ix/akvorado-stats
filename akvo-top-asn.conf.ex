@@ -1,6 +1,6 @@
 [clickhouse]
 ## Connect to a remote clickhouse via https in a akvorado setup:
-# host = akvorado.ibh.net/akvorado
+# host = akvorado.ibh.net/clickhouse
 # secure = 1
 # port = 443
 
