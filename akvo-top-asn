@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-
 import clickhouse_connect
 from collections import namedtuple
 import math
@@ -17,9 +16,9 @@ def check_conf_filename(fn):
     polite error messages.
     """
     if not os.path.exists(fn):
-        raise argparse.ArgumentTypeError(f'{fn} does not exist')
+        raise argparse.ArgumentTypeError(f"{fn} does not exist")
     if not os.path.isfile(fn):
-        raise argparse.ArgumentTypeError(f'{fn} is not a file')
+        raise argparse.ArgumentTypeError(f"{fn} is not a file")
 
     return fn
 
@@ -30,41 +29,53 @@ def check_time_stamp(ts):
 
 
 # Instantiate the parser
-parser = argparse.ArgumentParser(description='Akvorado top ASN stats')
-parser.add_argument('-c', '--config', type=check_conf_filename,
-                    default='akvo-top-asn.conf', help='configuration filename')
+parser = argparse.ArgumentParser(description="Akvorado top ASN stats")
 parser.add_argument(
-    '--starttime',
-    type=check_time_stamp, default=datetime.datetime.utcnow()-datetime.timedelta(days=7)
+    "-c", "--config", type=check_conf_filename, default="akvo-top-asn.conf", help="configuration filename"
 )
-parser.add_argument(
-    '--endtime',
-    type=check_time_stamp, default=datetime.datetime.utcnow()
-)
+parser.add_argument("--starttime", type=check_time_stamp)
+parser.add_argument("--endtime", type=check_time_stamp)
 
-# parse config file
+parser.add_argument("--days", type=int, default=0)
+parser.add_argument("--weeks", type=int, default=1)
+parser.add_argument("--months", type=int, default=0)
+
 args = parser.parse_args()
 config = configparser.ConfigParser()
 config.read(args.config)
 
-time_range = [args.starttime.strftime(
-    '%Y-%m-%d %H:%M:%S'), args.endtime.strftime('%Y-%m-%d %H:%M:%S')]
-directions = ['Out', 'In']
-si_prefixes = ['', 'K', 'M', 'G']
+starttime = None
+endtime = None
+
+
+# if no starttime is given we will take a timestamp thats in the past by some default offset
+if args.starttime is None:
+    delta = datetime.timedelta(
+        days=args.days + args.weeks * 7 + args.months * 30,
+    )
+
+    starttime = datetime.datetime.utcnow() - delta
+else:
+    startime = args.startime
+
+# if no endtime is given we take the current time as endtime
+if args.endtime is None:
+    endtime = datetime.datetime.utcnow()
+else:
+    endtime = args.endtime
+
+time_range = [starttime.strftime("%Y-%m-%d %H:%M:%S"), endtime.strftime("%Y-%m-%d %H:%M:%S")]
+si_prefixes = ["", "K", "M", "G"]
+directions = ["Out", "In"]
 
 
 def format_bps(n):
     """
     Format value with bps unit and SI prefix.
     """
-    idx = max(0,
-              min(
-                  len(si_prefixes) - 1,
-                  int(math.floor(0 if n == 0 else math.log10(abs(n))/3))
-              )
-              )
+    idx = max(0, min(len(si_prefixes) - 1, int(math.floor(0 if n == 0 else math.log10(abs(n)) / 3))))
 
-    return '{:.0f}{}bps'.format(n / 10**(3 * idx), si_prefixes[idx])
+    return "{:.0f}{}bps".format(n / 10 ** (3 * idx), si_prefixes[idx])
 
 
 def get_connection(config):
@@ -72,30 +83,28 @@ def get_connection(config):
     Create a clickhouse client instance based on the config
     parameters of the [clickhouse] section.
     """
-    params = {
-        'host': config['clickhouse'].get('host', 'localhost')
-    }
+    params = {"host": config["clickhouse"].get("host", "localhost")}
 
     # add optional parameters
     for param_name, param_type in [
-        ('secure', bool),
-        ('port', int),
-        ('username', str),
-        ('password', str),
+        ("secure", bool),
+        ("port", int),
+        ("username", str),
+        ("password", str),
     ]:
-        if param_name in config['clickhouse']:
+        if param_name in config["clickhouse"]:
             try:
-                params[param_name] = param_type(
-                    config['clickhouse'][param_name])
+                params[param_name] = param_type(config["clickhouse"][param_name])
             except ValueError as ex:
-                print(f'Bad config value for clickhouse.{param_name}: {ex}')
+                print(f"Bad config value for clickhouse.{param_name}: {ex}")
                 exit(1)
 
     return clickhouse_connect.get_client(**params)
 
 
 def query_clickhouse(time_range, direction):
-    return client.query(f"""
+    return client.query(
+        f"""
         WITH
         source AS (SELECT * FROM flows_5m0s SETTINGS asterisk_include_alias_columns = 1),
         rows AS (SELECT SrcAS FROM source WHERE TimeReceived BETWEEN toDateTime('{time_range[0]}', 'UTC') AND toDateTime('{time_range[1]}', 'UTC') AND (InIfBoundary = 'external') GROUP BY SrcAS ORDER BY SUM(Bytes) DESC LIMIT 50)
@@ -112,14 +121,15 @@ def query_clickhouse(time_range, direction):
         TO toDateTime('{time_range[1]}', 'UTC') + INTERVAL 1 second
         STEP 900
         INTERPOLATE (dimensions AS ['Other']))
-        """).result_rows
+        """
+    ).result_rows
 
 
 # connect to clickhouse
 try:
     client = get_connection(config)
 except clickhouse_connect.driver.exceptions.OperationalError as ex:
-    print(f'Failed to connect to clickhouse: {ex}')
+    print(f"Failed to connect to clickhouse: {ex}")
     exit(2)
 
 
@@ -134,9 +144,7 @@ for direction in directions:
             else:
                 asn_xps[asn][direction] = [xps]
         else:
-            asn_xps[asn] = {
-                direction: [xps]
-            }
+            asn_xps[asn] = {direction: [xps]}
 
 # build stats for each ASN
 asn_stats = {}
@@ -148,27 +156,25 @@ for asn, xps in asn_xps.items():
         if direction in xps:
             arr = np.array(xps[direction])
 
-            stats[f'{d}_avg'] = np.mean(arr)
-            stats[f'{d}_p95'] = np.percentile(arr, 95)
-            stats[f'{d}_max'] = np.max(arr)
+            stats[f"{d}_avg"] = np.mean(arr)
+            stats[f"{d}_p95"] = np.percentile(arr, 95)
+            stats[f"{d}_max"] = np.max(arr)
         else:
-            stats[f'{d}_avg'] = 0
-            stats[f'{d}_p95'] = 0
-            stats[f'{d}_max'] = 0
+            stats[f"{d}_avg"] = 0
+            stats[f"{d}_p95"] = 0
+            stats[f"{d}_max"] = 0
 
     asn_stats[asn] = stats
 
 # poor-mans table headers
-print('{asn: <42}'.format(asn='ASN'), end='')
+print("{asn: <42}".format(asn="ASN"), end="")
 columns = []
 for direction in directions:
-    for metric in ['avg', 'p95', 'max']:
-        columns.append(f'{{{direction.lower()}_{metric}: >9}}')
-        print(' {metric: <9}'.format(
-            metric=f'{direction.lower()}_{metric}'), end='')
+    for metric in ["avg", "p95", "max"]:
+        columns.append(f"{{{direction.lower()}_{metric}: >9}}")
+        print(" {metric: <9}".format(metric=f"{direction.lower()}_{metric}"), end="")
 print()
 
 # sort & print ASN stats
-for asn, stats in sorted(asn_stats.items(), key=lambda i: i[1]['out_p95'] + i[1]['in_p95'], reverse=True):
-    print(f'{{asn: <42}} {" ".join(columns)}'.format(
-        asn=asn, **{k: format_bps(v) for k, v in stats.items()}))
+for asn, stats in sorted(asn_stats.items(), key=lambda i: i[1]["out_p95"] + i[1]["in_p95"], reverse=True):
+    print(f'{{asn: <42}} {" ".join(columns)}'.format(asn=asn, **{k: format_bps(v) for k, v in stats.items()}))
