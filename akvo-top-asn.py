@@ -10,6 +10,7 @@ import os
 import datetime
 import configparser
 
+
 def is_ini_file(string):
     if os.path.exists(string):
         return string
@@ -18,42 +19,50 @@ def is_ini_file(string):
 
 
 # Instantiate the parser
-parser = argparse.ArgumentParser(description='DD-IX Akvorado Stat Collector')
-parser.add_argument('--config', type=is_ini_file)
+parser = argparse.ArgumentParser(description="DD-IX Akvorado Stat Collector")
+parser.add_argument("--config", type=is_ini_file)
 
-parser.add_argument(
-        '--starttime',
-        type=lambda s: datetime.datetime.fromisoformat(s),
-)
+parser.add_argument("--starttime", type=lambda s: datetime.datetime.fromisoformat(s), required=False)
 
-parser.add_argument(
-        '--endtime',
-        type=lambda s: datetime.datetime.fromisoformat(s),
-)
+parser.add_argument("--endtime", type=lambda s: datetime.datetime.fromisoformat(s), required=False)
 
+parser.add_argument("--days", type=int, default=0)
+parser.add_argument("--weeks", type=int, default=0)
+parser.add_argument("--months", type=int, default=0)
 
 args = parser.parse_args()
 config = configparser.ConfigParser()
 config.read(args.config)
 
+starttime = args.starttime
+endtime = args.endtime
+
+# if no start time is defined we will take the current time
+if endtime is None:
+    endtime = datetime.datetime.utcnow().isoformat()
+
+if starttime is None:
+    delta = datetime.timedelta(
+        days=args.days + args.weeks * 7 + args.months * 30,
+    )
+
+    starttime = (datetime.datatime.utcnow() - delta).isoformat()
+
+
 time_range = [args.starttime, args.endtime]
-si_prefixes = ['', 'K', 'M', 'G']
+si_prefixes = ["", "K", "M", "G"]
 
 
 def format_bps(n):
-    idx = max(0,
-              min(
-                  len(si_prefixes) - 1,
-                  int(math.floor(0 if n == 0 else math.log10(abs(n))/3))
-              )
-              )
+    idx = max(0, min(len(si_prefixes) - 1, int(math.floor(0 if n == 0 else math.log10(abs(n)) / 3))))
 
-    return '{:.0f}{}bps'.format(n / 10**(3 * idx), si_prefixes[idx])
+    return "{:.0f}{}bps".format(n / 10 ** (3 * idx), si_prefixes[idx])
 
 
 # client = clickhouse_connect.get_client(host='akvorado.ibh.net', secure=True, port=443, username='default', password='password')
-client = clickhouse_connect.get_client(host='localhost')
-result = client.query(f"""
+client = clickhouse_connect.get_client(host="localhost")
+result = client.query(
+    f"""
  WITH
  source AS (SELECT * FROM flows_5m0s SETTINGS asterisk_include_alias_columns = 1),
  rows AS (SELECT SrcAS FROM source WHERE TimeReceived BETWEEN toDateTime('{time_range[0]}', 'UTC') AND toDateTime('{time_range[1]}', 'UTC') AND (InIfBoundary = 'external') GROUP BY SrcAS ORDER BY SUM(Bytes) DESC LIMIT 50)
@@ -70,7 +79,8 @@ ORDER BY time WITH FILL
  TO toDateTime('{time_range[1]}', 'UTC') + INTERVAL 1 second
  STEP 900
  INTERPOLATE (dimensions AS ['Other']))
-""")
+"""
+)
 
 # build list of bandwidths per ASN
 asn_xps = {}
@@ -86,11 +96,11 @@ for asn, xps in asn_xps.items():
     arr = np.array(xps)
 
     stats = {
-      'avr': np.mean(arr),
-      'p95': np.percentile(arr, 95),
+        "avr": np.mean(arr),
+        "p95": np.percentile(arr, 95),
     }
 
-    asn_stats[asn] = namedtuple('ASNStats', stats.keys())(**stats)
+    asn_stats[asn] = namedtuple("ASNStats", stats.keys())(**stats)
 
 # sort & print ASN stats
 for asn, stats in sorted(asn_stats.items(), key=lambda i: i[1].p95):
