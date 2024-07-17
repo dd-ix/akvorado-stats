@@ -52,13 +52,6 @@ config.read(args.config)
 starttime = None
 endtime = None
 
-# and explicit endtime is given
-if args.endtime is not None:
-    endtime = args.endtime
-else:
-    endtime = datetime.datetime.utcnow()
-
-
 if args.starttime is None:
     delta = datetime.timedelta(
         days=args.days + args.weeks * 7 + args.months * 30,
@@ -67,6 +60,12 @@ if args.starttime is None:
     starttime = (datetime.datetime.utcnow() - delta)
 else:
     startime = args.startime
+
+# and explicit endtime is given
+if args.endtime is not None:
+    endtime = args.endtime
+else:
+    endtime = datetime.datetime.utcnow()
 
 time_range = [starttime.strftime('%Y-%m-%d %H:%M:%S'), endtime.strftime('%Y-%m-%d %H:%M:%S')]
 si_prefixes = ['', 'K', 'M', 'G']
