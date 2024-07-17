@@ -128,7 +128,7 @@ def query_clickhouse(time_range, direction):
 # connect to clickhouse
 try:
     client = get_connection(config)
-except clickhouse_connect.driver.exceptions.OperationalError as ex:
+except clickhouse_connect.driver.exceptions.DatabaseError as ex:
     print(f"Failed to connect to clickhouse: {ex}")
     exit(2)
 
