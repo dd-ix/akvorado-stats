@@ -22,9 +22,11 @@ def check_conf_filename(fn):
 
     return fn
 
+
 def check_time_stamp(ts):
     print(datetime.datetime.fromisoformat(ts))
     return datetime.datetime.fromisoformat(ts)
+
 
 # Instantiate the parser
 parser = argparse.ArgumentParser(description='Akvorado top ASN stats')
@@ -81,9 +83,31 @@ def format_bps(n):
     return '{:.0f}{}bps'.format(n / 10**(3 * idx), si_prefixes[idx])
 
 
-client = clickhouse_connect.get_client(
-    host='akvorado.ibh.net/clickhouse', secure=True, port=443)
-# client = clickhouse_connect.get_client(host='localhost')
+def get_connection(config):
+    """
+    Create a clickhouse client instance based on the config
+    parameters of the [clickhouse] section.
+    """
+    params = {
+        'host': config['clickhouse'].get('host', 'localhost')
+    }
+
+    # add optional parameters
+    for param_name, param_type in [
+        ('secure', bool),
+        ('port', int),
+        ('username', str),
+        ('password', str),
+    ]:
+        if param_name in config['clickhouse']:
+            try:
+                params[param_name] = param_type(
+                    config['clickhouse'][param_name])
+            except ValueError as ex:
+                print(f'Bad config value for clickhouse.{param_name}: {ex}')
+                exit(1)
+
+    return clickhouse_connect.get_client(**params)
 
 
 def query_clickhouse(time_range, direction):
@@ -105,6 +129,14 @@ def query_clickhouse(time_range, direction):
         STEP 900
         INTERPOLATE (dimensions AS ['Other']))
         """).result_rows
+
+
+# connect to clickhouse
+try:
+    client = get_connection(config)
+except clickhouse_connect.driver.exceptions.OperationalError as ex:
+    print(f'Failed to connect to clickhouse: {ex}')
+    exit(2)
 
 
 # build list of bandwidths per ASN
@@ -153,7 +185,7 @@ for direction in directions:
 print()
 
 # sort & print ASN stats
-for asn, stats in sorted(asn_stats.items(), key=lambda i: i[1]['out_p95'] + i[1]['in_p95']):
+for asn, stats in sorted(asn_stats.items(), key=lambda i: i[1]['out_p95'] + i[1]['in_p95'], reverse=True):
     print(f'{{asn: <42}} {" ".join(columns)}'.format(
         asn=asn, **{k: format_bps(v) for k, v in stats.items()}))
 

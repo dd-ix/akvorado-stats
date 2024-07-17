@@ -1,8 +1,11 @@
 [clickhouse]
-# host = akvorado.fqdn/akvorado
+## Connect to a remote clickhouse via https in a akvorado setup:
+# host = akvorado.ibh.net/akvorado
 # secure = 1
 # port = 443
-host = localhost
+
+## Use localhost:8123 via http (default):
+# host = localhost
 
 [upload]
 # url = https://
