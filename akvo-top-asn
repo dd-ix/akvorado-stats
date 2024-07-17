@@ -49,14 +49,14 @@ args = parser.parse_args()
 config = configparser.ConfigParser()
 config.read(args.config)
 
-starttime: str = ""
-endtime : str = ""
+starttime = None
+endtime = None
 
 # and explicit endtime is given
 if args.endtime is not None:
-    endtime = args.endtime.isoformat()
+    endtime = args.endtime
 else:
-    endtime = datetime.datetime.utcnow().isoformat()
+    endtime = datetime.datetime.utcnow()
 
 
 if args.starttime is None:
@@ -64,11 +64,11 @@ if args.starttime is None:
         days=args.days + args.weeks * 7 + args.months * 30,
     )
 
-    starttime = (datetime.datatime.utcnow() - delta).isoformat()
+    starttime = (datetime.datetime.utcnow() - delta)
 else:
-    startime = args.startime.isoformat()
+    startime = args.startime
 
-time_range = [starttime, endtime]
+time_range = [starttime.strftime('%Y-%m-%d %H:%M:%S'), endtime.strftime('%Y-%m-%d %H:%M:%S')]
 si_prefixes = ['', 'K', 'M', 'G']
 directions = ['Out', 'In']
 
