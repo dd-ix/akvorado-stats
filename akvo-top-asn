@@ -24,7 +24,6 @@ def check_conf_filename(fn):
 
 
 def check_time_stamp(ts):
-    print(datetime.datetime.fromisoformat(ts))
     return datetime.datetime.fromisoformat(ts)
 
 
@@ -112,7 +111,7 @@ def query_clickhouse(time_range, direction):
         SELECT
         toStartOfInterval(TimeReceived + INTERVAL 900 second, INTERVAL 900 second) - INTERVAL 900 second AS time,
         SUM(Bytes*SamplingRate*8)/900 AS xps,
-        if((SrcAS) IN rows, [concat(toString(SrcAS), ': ', dictGetOrDefault('asns', 'name', SrcAS, '???'))], ['Other']) AS dimensions
+        if((SrcAS) IN rows, [concat(toString(SrcAS), ': ', dictGetOrDefault('asns', 'name', SrcAS, '???'))], ['0: Other']) AS dimensions
         FROM source
         WHERE TimeReceived BETWEEN toDateTime('{time_range[0]}', 'UTC') AND toDateTime('{time_range[1]}', 'UTC') AND ({direction}IfBoundary = 'external')
         GROUP BY time, dimensions
@@ -120,7 +119,7 @@ def query_clickhouse(time_range, direction):
         FROM toDateTime('{time_range[0]}', 'UTC')
         TO toDateTime('{time_range[1]}', 'UTC') + INTERVAL 1 second
         STEP 900
-        INTERPOLATE (dimensions AS ['Other']))
+        INTERPOLATE (dimensions AS ['0: Other']))
         """
     ).result_rows
 
@@ -148,7 +147,10 @@ for direction in directions:
 
 # build stats for each ASN
 asn_stats = {}
-for asn, xps in asn_xps.items():
+asn_orgs = {}
+for _asn, xps in asn_xps.items():
+    asn, org = map(str.strip, _asn.split(':', 1))
+    asn_orgs[asn] = org
     stats = {}
     for direction in directions:
         d = direction.lower()
@@ -167,7 +169,7 @@ for asn, xps in asn_xps.items():
     asn_stats[asn] = stats
 
 # poor-mans table headers
-print("{asn: <42}".format(asn="ASN"), end="")
+print("{asn: <7} {org: <36}".format(asn="ASN", org="ORG"), end="")
 columns = []
 for direction in directions:
     for metric in ["avg", "p95", "max"]:
@@ -177,4 +179,4 @@ print()
 
 # sort & print ASN stats
 for asn, stats in sorted(asn_stats.items(), key=lambda i: i[1]["out_p95"] + i[1]["in_p95"], reverse=True):
-    print(f'{{asn: <42}} {" ".join(columns)}'.format(asn=asn, **{k: format_bps(v) for k, v in stats.items()}))
+    print(f'{{asn: <7}} {{org: <36}} {" ".join(columns)}'.format(asn=asn, org=asn_orgs[asn], **{k: format_bps(v) for k, v in stats.items()}))
