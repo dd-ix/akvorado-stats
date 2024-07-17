@@ -169,6 +169,6 @@ for direction in directions:
 print()
 
 # sort & print ASN stats
-for asn, stats in sorted(asn_stats.items(), key=lambda i: i[1]['out_p95'] + i[1]['in_p95']):
+for asn, stats in sorted(asn_stats.items(), key=lambda i: i[1]['out_p95'] + i[1]['in_p95'], reverse=True):
     print(f'{{asn: <42}} {" ".join(columns)}'.format(
         asn=asn, **{k: format_bps(v) for k, v in stats.items()}))
