@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-
 import clickhouse_connect
 from collections import namedtuple
 import math
@@ -33,21 +32,39 @@ parser.add_argument('-c', '--config', type=check_conf_filename,
                     default='akvo-top-asn.conf', help='configuration filename')
 parser.add_argument(
     '--starttime',
-    type=check_time_stamp, default=datetime.datetime.utcnow()-datetime.timedelta(days=7)
+    type=check_time_stamp 
 )
 parser.add_argument(
     '--endtime',
-    type=check_time_stamp, default=datetime.datetime.utcnow()
+    type=check_time_stamp 
 )
 
-# parse config file
+parser.add_argument("--days", type=int, default=0)
+parser.add_argument("--weeks", type=int, default=0)
+parser.add_argument("--months", type=int, default=0)
+
 args = parser.parse_args()
 config = configparser.ConfigParser()
 config.read(args.config)
 
-time_range = [args.starttime.strftime('%Y-%m-%d %H:%M:%S'), args.endtime.strftime('%Y-%m-%d %H:%M:%S')]
-directions = ['Out', 'In']
+starttime = args.starttime
+endtime = args.endtime
+
+# if no start time is defined we will take the current time
+if endtime is None:
+    endtime = datetime.datetime.utcnow().isoformat()
+
+if starttime is None:
+    delta = datetime.timedelta(
+        days=args.days + args.weeks * 7 + args.months * 30,
+    )
+
+    starttime = (datetime.datatime.utcnow() - delta).isoformat()
+
+
+time_range = [args.starttime, args.endtime]
 si_prefixes = ['', 'K', 'M', 'G']
+directions = ['Out', 'In']
 
 
 def format_bps(n):
@@ -139,3 +156,4 @@ print()
 for asn, stats in sorted(asn_stats.items(), key=lambda i: i[1]['out_p95'] + i[1]['in_p95']):
     print(f'{{asn: <42}} {" ".join(columns)}'.format(
         asn=asn, **{k: format_bps(v) for k, v in stats.items()}))
+
