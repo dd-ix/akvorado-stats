@@ -2,3 +2,4 @@ venv
 *.conf
 *.csv
 *.sql
+*.yml

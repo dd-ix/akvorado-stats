@@ -8,6 +8,8 @@ import argparse
 import os
 import datetime
 import configparser
+import requests
+import yaml
 
 
 def check_conf_filename(fn):
@@ -38,6 +40,12 @@ parser.add_argument("--endtime", type=check_time_stamp)
 parser.add_argument("--days", type=int, default=0)
 parser.add_argument("--weeks", type=int, default=1)
 parser.add_argument("--months", type=int, default=0)
+
+parser.add_argument("--filename", default=argparse.SUPPRESS, help="filename strftime pattern for saving and uploading results" )
+parser.add_argument("--save", action="store_true", help="save result to local file")
+parser.add_argument("--upload", action="store_true", help="upload result to remote http url")
+parser.add_argument("--quiet", action="store_true", help="do not print results")
+
 
 args = parser.parse_args()
 config = configparser.ConfigParser()
@@ -147,11 +155,17 @@ for direction in directions:
 
 # build stats for each ASN
 asn_stats = {}
-asn_orgs = {}
 for _asn, xps in asn_xps.items():
     asn, org = map(str.strip, _asn.split(':', 1))
-    asn_orgs[asn] = org
-    stats = {}
+    asn = int(asn)
+
+    # skip 'Other'
+    if asn == 0:
+        continue
+
+    stats = {
+        'org': org,
+    }
     for direction in directions:
         d = direction.lower()
 
@@ -168,15 +182,53 @@ for _asn, xps in asn_xps.items():
 
     asn_stats[asn] = stats
 
-# poor-mans table headers
-print("{asn: <7} {org: <36}".format(asn="ASN", org="ORG"), end="")
-columns = []
-for direction in directions:
-    for metric in ["avg", "p95", "max"]:
-        columns.append(f"{{{direction.lower()}_{metric}: >9}}")
-        print(" {metric: <9}".format(metric=f"{direction.lower()}_{metric}"), end="")
-print()
+if args.save or args.upload:
+    fn = starttime.strftime(getattr(args, 'filename', config['upload'].get('filename', 'export-%Y-W%W.yml')))
 
-# sort & print ASN stats
-for asn, stats in sorted(asn_stats.items(), key=lambda i: i[1]["out_p95"] + i[1]["in_p95"], reverse=True):
-    print(f'{{asn: <7}} {{org: <36}} {" ".join(columns)}'.format(asn=asn, org=asn_orgs[asn], **{k: format_bps(v) for k, v in stats.items()}))
+    # dump result to string
+    yaml.add_representer(np.float64, lambda dumper, data: dumper.represent_scalar('tag:yaml.org,2002:float', str(data)))
+    result = yaml.dump({
+        'from': time_range[0],
+        'to': time_range[1],
+        # 'local_asn': local_asn,
+        'top_peers': asn_stats,
+    })
+
+    # save result to local file
+    if args.save:
+        with open(fn, 'w') as fh:
+            fh.write(result)
+
+    # upload result to http remote location
+    if args.upload:
+        params = {
+            "headers": {
+                "X-Requested-With": "XMLHttpRequest",
+            },
+            "data": result,
+        }
+
+        if "username" in config["upload"] or "password" in config["upload"]:
+            params["auth"] = (config["upload"].get("username"), config["upload"].get("password"))
+
+        try:
+            response = requests.put(config["upload"]["url"] + "/" + fn, **params)
+            print(response)
+        except KeyError:
+            print("Upload URL not configured!")
+
+
+# print to stdout
+if not args.quiet:
+    # poor-mans table headers
+    print("{asn: <7} {org: <36}".format(asn="ASN", org="ORG"), end="")
+    columns = []
+    for direction in directions:
+        for metric in ["avg", "p95", "max"]:
+            columns.append(f"{{{direction.lower()}_{metric}: >9}}")
+            print(" {metric: <9}".format(metric=f"{direction.lower()}_{metric}"), end="")
+    print()
+
+    # sort & print ASN stats
+    for asn, stats in sorted(asn_stats.items(), key=lambda i: i[1]["out_p95"] + i[1]["in_p95"], reverse=True):
+        print(f'{{asn: <7}} {{org: <36}} {" ".join(columns)}'.format(asn=asn, org=stats['org'], **{k: format_bps(v) for k, v in stats.items() if k != "org"}))

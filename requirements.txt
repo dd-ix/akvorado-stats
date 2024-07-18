@@ -1,2 +1,4 @@
 clickhouse-connect
 numpy
+PyYAML
+requests
