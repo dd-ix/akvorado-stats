@@ -185,14 +185,17 @@ except clickhouse_connect.driver.exceptions.DatabaseError as ex:
 logger.info("query time range: %s - %s", *time_range)
 
 
+value_limit = config["query"].get("value_limit", 1000)
+query_limit = config["query"].get("query_limit", 100)
+
 # build list of bandwidths per ASN
 asn_xps = {}
 for direction in directions: # in bound and outbound
     i = 0
     while True:
-        logger.info(f"query results from {i * args.query_limit} until {(i + 1) * args.query_limit} ... ")
+        logger.info(f"query results from {i * query_limit} until {(i + 1) * query_limit} ... ")
 
-        query_result = query_clickhouse(time_range, direction, limit=args.query_limit, offset= i * args.query_limit)
+        query_result = query_clickhouse(time_range, direction, limit=query_limit, offset= i * query_limit)
         for axis, ts, xps, _asn in query_result:
             asn = _asn[0]
             if asn in asn_xps:
@@ -203,7 +206,7 @@ for direction in directions: # in bound and outbound
             else:
                 asn_xps[asn] = {direction: [xps]}
 
-        if query_result < args.query_limit and (i * args.query_limit) < args.value_limit:
+        if query_result < query_limit and (i * query_limit) < value_limit:
             i += 1
         else:
             break
