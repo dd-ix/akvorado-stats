@@ -91,8 +91,8 @@ for attribute, measurement in data.items():
 
 # Add some text for labels, title and custom x-axis tick labels, etc.
 ax.set_ylabel("traffic with network in " + latin_prefix(args.scale) + "bit/s")
-ax.set_title("as numbers of different networks")
-ax.set_xticks(x + width, names, rotation=40, ha="right")
+ax.set_title("AS numbers of different networks")
+ax.set_xticks(x + width, names, rotation=40, ha='right')
 ax.legend(loc="upper left", ncols=4)
-
+plt.title("Traffic-Statistics recorded from " + yaml_file["from"] + " until " + yaml_file["to"], loc='center')
 plt.show()
