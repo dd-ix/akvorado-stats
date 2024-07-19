@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+
+import argparse
+import datetime
+from pdf_reports import pug_to_html, write_report
+import math
+import yaml
+
+P95_CUT_OFF = 10_000_000
+SI_PREFIXES = ["", "K", "M", "G"]
+
+def format_bps(n):
+  """
+  Format value with bps unit and SI prefix.
+  """
+  idx = max(0, min(len(SI_PREFIXES) - 1, int(math.floor(0 if n == 0 else math.log10(abs(n)) / 3))))
+
+  return "{:.1f}&thinsp;{}bps".format(n / 10 ** (3 * idx), SI_PREFIXES[idx])
+
+parser = argparse.ArgumentParser(
+    description="Akvorado Traffic Analysis Report Builder")
+parser.add_argument("files", nargs="+", help="list of yaml statistics files")
+
+args = parser.parse_args()
+time_range = [None, None]
+local_asn = {}
+remote_asn = {}
+
+# parse yaml statistics files
+for fn in args.files:
+  with open(fn, 'r') as fh:
+    try:    
+      data = yaml.safe_load(fh)
+    except yaml.YAMLError as ex:
+      print("cannot parse yaml file", ex)
+      sys.exit(1)
+
+    # extract org data
+    meta = data["meta"]
+
+    # get start of time range
+    meta["from"] = datetime.datetime.fromisoformat(meta["from"])
+    if time_range[0] is None or time_range[0] < meta["from"]:
+      time_range[0] = meta["from"]
+
+    # get end of time range
+    meta["to"] = datetime.datetime.fromisoformat(meta["to"])
+    if time_range[1] is None or time_range[1] > meta["to"]:
+      time_range[1] = meta["to"]
+
+    local_asn[meta["asn"]] = meta
+
+    # record peer stats
+    for asn, stats in data["top_peers"].items():
+      if asn not in remote_asn:
+        remote_asn[asn] = stats
+        remote_asn[asn]["local_peers"] = 1
+      else:
+        remote_asn[asn]["local_peers"] += 1
+        for metric in stats.keys():
+          if metric != "org":
+            remote_asn[asn][metric] += stats[metric]
+
+# calculate data points coverage
+for asn, meta in local_asn.items():
+  local_asn[asn]["coverage"] = "{: 0.1f}".format(100*(time_range[1] - time_range[0]) / (meta["to"] - meta["from"]))
+
+  # drop remote stats of local_asn
+  del(remote_asn[asn])
+
+# format p95 values
+cut_off_asn = []
+for asn in remote_asn.keys():
+  if remote_asn[asn]["in_p95"] < P95_CUT_OFF or remote_asn[asn]["out_p95"] < P95_CUT_OFF:
+    cut_off_asn.append(asn)
+  else:
+    for k in ["in_p95", "out_p95"]:
+      remote_asn[asn][f"{k}_si"] = format_bps(remote_asn[asn][k])
+
+# remove ASN below P95 cut-off
+for asn in cut_off_asn:
+  del(remote_asn[asn])
+
+html = pug_to_html("templates/report.pug",
+                   p95_cut_off=P95_CUT_OFF,
+                   logo_path="/home/thomas/src/akvorado-stats/analysis/ddix-logo.svg",
+                   local_asn=sorted(local_asn.items(), key=lambda i: i[0]),
+                   remote_asn=sorted(remote_asn.items(), key=lambda i: i[1]["in_p95"] + i[1]["out_p95"], reverse=True),
+                   ts_from=time_range[0].strftime("%Y-%m-%d"),
+                   ts_to=time_range[1].strftime("%Y-%m-%d"))
+print(html)
+write_report(html, "report.pdf")
