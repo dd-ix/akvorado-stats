@@ -9,7 +9,7 @@
 
 [upload]
 ## upload server & auth (i.e. Nextcloud public share)
-# url = https://cloud.dd-ix.net/public.php/webdav/
+# url = https://cloud.dd-ix.net/public.php/webdav
 # username = nc-share-id
 # password = nc-share-secret
 
