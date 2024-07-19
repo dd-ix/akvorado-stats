@@ -1,5 +1,16 @@
+[meta]
+## your ASN (required)
+# asn = 680
+
+[asn]
+## comma separated list of downstream ASNs
+# local = 
+
+## comma separated list of ASNs to be filtered
+# filter = 
+
 [clickhouse]
-## Connect to a remote clickhouse via https in a akvorado setup:
+## connect to a remote clickhouse via https in a akvorado setup
 # host = akvorado.ibh.net/clickhouse
 # secure = 1
 # port = 443

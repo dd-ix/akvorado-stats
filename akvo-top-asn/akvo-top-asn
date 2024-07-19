@@ -8,6 +8,7 @@ import argparse
 import os
 import datetime
 import configparser
+import platform
 import requests
 import yaml
 import logging
@@ -86,8 +87,21 @@ logger = setup_logging(args)
 if not (args.print or args.upload or args.save):
   parser.error("You need to specify at least one action!")
 
+# prepare defaults & read configuration
 config = configparser.ConfigParser(interpolation=None)
+config.add_section('meta')
+config['meta']['source'] = platform.node()
+config.add_section('asn')
+config['asn']['local'] = ''
+config['asn']['filter'] = ''
+config.add_section('clickhouse')
+config["clickhouse"]["host"] = "localhost"
+config.add_section('upload')
 config.read(args.config)
+
+if not 'asn' in config['meta']:
+    logger.error("config option meta.asn is not set")
+    exit(1)
 
 starttime = None
 endtime = None
@@ -128,7 +142,7 @@ def get_connection(config):
     Create a clickhouse client instance based on the config
     parameters of the [clickhouse] section.
     """
-    params = {"host": config["clickhouse"].get("host", "localhost")}
+    params = {"host": config["clickhouse"]["host"]}
 
     # add optional parameters
     for param_name, param_type in [
@@ -172,6 +186,18 @@ def query_clickhouse(time_range, direction):
     return client.query(query).result_rows
 
 
+def query_org(asn: int):
+    query = f"SELECT name FROM asns WHERE asn = '{asn}'"
+
+    logger.debug("clickhouse query: %s", query)
+    rows = client.query(query).result_rows
+
+    if not rows:
+        return None
+    else:
+        return rows[0][0]
+
+
 # connect to clickhouse
 try:
     client = get_connection(config)
@@ -179,8 +205,31 @@ except clickhouse_connect.driver.exceptions.DatabaseError as ex:
     logger.error("Failed to connect to clickhouse: %s", ex)
     exit(2)
 
-logger.info("query time range: %s - %s", *time_range)
 
+# get source ASN
+source_asn = int(config['meta']['asn'])
+source_org = query_org(source_asn)
+
+# parse local_asn
+local_asn = {}
+asns = config['asn']['local'].split(',')
+logger.info("lookup local asn: %s", ", ".join(asns))
+for asn in asns:
+    if asn:
+        asn = int(asn)
+        local_asn[asn] = query_org(asn)
+
+# parse filter_asn
+filter_asn = {}
+asns = config['asn']['filter'].split(',')
+logger.info("lookup filter asn: %s", ", ".join(asns))
+for asn in asns:
+    if asn:
+        asn = int(asn)
+        filter_asn[asn] = query_org(asn)
+
+
+logger.info("query time range: %s - %s", *time_range)
 
 # build list of bandwidths per ASN
 asn_xps = {}
@@ -204,8 +253,12 @@ for _asn, xps in asn_xps.items():
     asn, org = map(str.strip, _asn.split(':', 1))
     asn = int(asn)
 
-    # skip 'Other'
+    # skip 'Other', local or filtered asns
     if asn == 0:
+        continue
+    if asn in local_asn:
+        continue
+    if asn in filter_asn:
         continue
 
     stats = {
@@ -233,9 +286,14 @@ if args.save or args.upload:
     # dump result to string
     yaml.add_representer(np.float64, lambda dumper, data: dumper.represent_scalar('tag:yaml.org,2002:float', str(data)))
     result = yaml.dump({
-        'from': time_range[0],
-        'to': time_range[1],
-        # 'local_asn': local_asn,
+        'meta': {
+            'from': time_range[0],
+            'to': time_range[1],
+            'asn': source_asn,
+            'org': source_org,
+        },
+        'local_asn': local_asn,
+        'filter_asn': filter_asn,
         'top_peers': asn_stats,
     })
 
