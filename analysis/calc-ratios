@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+
+import argparse
+import math
+import yaml
+
+parser = argparse.ArgumentParser(
+    description="Akvorado Traffic Analysis Ratio Calculator")
+parser.add_argument("files", nargs="+", help="list of yaml statistics files")
+
+args = parser.parse_args()
+local_asn = {}
+remote_asn = {}
+
+# parse yaml statistics files
+for fn in args.files:
+  with open(fn, 'r') as fh:
+    try:    
+      data = yaml.safe_load(fh)
+    except yaml.YAMLError as ex:
+      print("cannot parse yaml file", ex)
+      sys.exit(1)
+
+    # extract org data
+    peer = data["meta"]["asn"]
+    local_asn[peer] = data["meta"]
+
+    # record peer stats
+    for asn, stats in data["top_peers"].items():
+      if asn not in remote_asn:
+        remote_asn[asn] = {
+          "org": stats["org"]
+        }
+
+      if peer not in remote_asn[asn]:
+        remote_asn[asn][peer] = {}
+
+      for metric in ["avg", "p95", "max"]:
+        if f"in_{metric}" in stats:
+          in_value = stats[f"in_{metric}"]
+          out_value = stats[f"out_{metric}"]
+          
+          if in_value >= out_value:
+            ratio = "{:.1f}:1".format(in_value/out_value)
+          else:
+            ratio = "1:{:.1f}".format(out_value/in_value)
+
+          remote_asn[asn][peer][metric] = ratio
+
+columns = sorted(local_asn.keys())
+print("{:<8} {:<36} {:<8}".format("ASN", "ORG", "METRIC"), end="")
+for asn in columns:
+    print(" {:<8}".format(asn), end="")
+print()
+
+peers = len(local_asn)
+for asn, metrics in remote_asn.items():
+  if len(metrics) - 1 == peers:
+    for metric in ["avg"]: # , "p95", "max"
+      if metric == "avg":
+        print("{:<8} {:<36} {:<8}".format(asn, metrics["org"], metric), end="")
+      else:
+        print("{:<8} {:<36} {:<8}".format("", "", metric), end="")
+      for peer in columns:
+        print(" {:<8}".format(metrics[peer][metric]), end="")
+      print()
