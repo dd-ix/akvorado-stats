@@ -3,11 +3,18 @@
 import argparse
 import datetime
 from pdf_reports import pug_to_html, write_report
+import fsspec
 import math
 import yaml
 
 P95_CUT_OFF = 10_000_000
 SI_PREFIXES = ["", "K", "M", "G"]
+SIBLING_ASN_SOURCES = {
+  "Akamai": "https://raw.githubusercontent.com/SecOps-Institute/Akamai-ASN-and-IPs-List/master/akamai_asn_list.lst",
+  "DigitalOcean": "https://raw.githubusercontent.com/SecOps-Institute/Digitalocean-ASN-and-IPs-List/master/digitalocean_asn_list.lst",
+  "Facebook": "https://raw.githubusercontent.com/SecOps-Institute/FacebookIPLists/master/facebook_asn_list.lst",
+  "LinkedIn": "https://raw.githubusercontent.com/SecOps-Institute/LinkedInIPLists/master/linkedin_asn_list.lst",
+}
 
 def format_bps(n):
   """
@@ -19,6 +26,8 @@ def format_bps(n):
 
 parser = argparse.ArgumentParser(
     description="Akvorado Traffic Analysis Report Builder")
+parser.add_argument("-i","--individual", action="store_true", help="generate individual reports")
+parser.add_argument("--cache", type=str, default=".cache", help="caching directory (default: .cache)")
 parser.add_argument("files", nargs="+", help="list of yaml statistics files")
 
 args = parser.parse_args()
@@ -80,15 +89,66 @@ for asn in remote_asn.keys():
     for k in ["in_p95", "out_p95"]:
       remote_asn[asn][f"{k}_si"] = format_bps(remote_asn[asn][k])
 
+# prepare pug variables
+pug_globals = {
+  "logo_path": "/home/thomas/src/akvorado-stats/analysis/ddix-logo.svg",
+  "local_asn": sorted({**local_asn, **peer_asn}.items(), key=lambda i: i[0]),
+  "ts_from": time_range[0].strftime("%Y-%m-%d"),
+  "ts_to": time_range[1].strftime("%Y-%m-%d"),
+}
+
+# create individual asn stats
+if args.individual:
+  sibling_asn = []
+  for org, url in SIBLING_ASN_SOURCES.items():
+    with fsspec.open(f"filecache::{url}", mode='rt', filecache={'cache_storage': args.cache}) as fh:
+      sibling_asn.append(sorted([int(asn.removeprefix("AS").strip()) for asn in fh.readlines()]))
+
+  seen_siblings = []
+  for asn in sorted(remote_asn.keys()):
+    # skip if this asn was already a sibling
+    if asn in seen_siblings:
+      continue
+
+    # check if we know any siblings
+    siblings = [asn]
+    for s in sibling_asn:
+      if asn in s:
+        siblings = s
+        seen_siblings.append(siblings)
+        break
+
+    # remote asn listed in this report
+    report_asn = {asn: metrics for asn, metrics in remote_asn.items() if asn in siblings}
+
+    # get total stats if more than a single asn is listed
+    totals = {}
+    if len(report_asn) > 1:
+      for direction in ["in", "out"]:
+        for metric in ["avg", "p95", "max"]:
+          k = f"{direction}_{metric}"
+          for a, stats in report_asn.items():
+            if k in stats:
+              if k in totals:
+                totals[k] += stats[k]
+              else:
+                totals[k] = stats[k]
+
+          totals[f"{k}_si"] = format_bps(totals[k])
+
+    # generate single asn report
+    html = pug_to_html("templates/single-asn.pug",
+                   remote_asn=sorted(report_asn.items(), key=lambda i: i[0], reverse=True),
+                   totals=totals,
+                   **pug_globals)
+    write_report(html, f"as{asn}.pdf")
+
 # remove ASN below P95 cut-off
 for asn in cut_off_asn:
   del(remote_asn[asn])
 
-html = pug_to_html("templates/report.pug",
+html = pug_to_html("templates/top-asn.pug",
                    p95_cut_off=P95_CUT_OFF,
-                   logo_path="/home/thomas/src/akvorado-stats/analysis/ddix-logo.svg",
-                   local_asn=sorted({**local_asn, **peer_asn}.items(), key=lambda i: i[0]),
                    remote_asn=sorted(remote_asn.items(), key=lambda i: i[1]["in_p95"] + i[1]["out_p95"], reverse=True),
-                   ts_from=time_range[0].strftime("%Y-%m-%d"),
-                   ts_to=time_range[1].strftime("%Y-%m-%d"))
+                   **pug_globals)
 write_report(html, "report.pdf")

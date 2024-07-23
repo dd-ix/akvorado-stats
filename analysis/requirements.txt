@@ -1,2 +1,5 @@
+aiohttp
+fsspec
 pdf_reports
 PyYAML
+requests

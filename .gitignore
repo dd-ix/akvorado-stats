@@ -4,3 +4,4 @@ venv
 *.pdf
 *.sql
 *.yml
+.cache

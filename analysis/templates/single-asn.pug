@@ -1,0 +1,92 @@
+style(lang="css").
+  .break {
+    page-break-before: always;
+  }
+  .watermark {
+    transform: rotate(331deg);
+    font-size: 12em;
+    font-weight: bold;
+    text-transform: uppercase;
+    color: rgba(255, 5, 5, 0.17);
+    position: fixed;
+    top: 30%;
+    bottom: 30%;
+    left: 10%;
+    right: 10%;
+    text-align: center;
+  }
+  .value {
+    font-family: mono;
+    text-align: right;
+  }
+  .total {
+    color: #209680;
+    font-weight: bold;
+  }
+  @page {
+    @bottom-center{
+        content: url(file:///{{ logo_path }});
+    }
+  }
+  #sidebar {
+    border-top: 0.25in solid #209680;
+    color: white;
+  }
+
+img(style="width:00px; display:block; margin:0 auto;"
+    src="file:///{{ logo_path }}")
+
+
+#sidebar: p DD-IX Dresden Internet Exchange | ASN Traffic Analysis | {{ ts_from }} &ndash; {{ ts_to }}
+
+p.watermark T e s t
+
+h1 ASN Traffic Analysis
+
+p This report shows the traffic statistics of peers at #[a(href='https://dd-ix.net') DD-IX Dresden Internet Exchange] with notable destination ASN. The analysis covers the time range from #[code {{ ts_from }}] to #[code {{ ts_to }}].
+
+h2 DD-IX Peers ASN
+
+p The following list contains all ASNs on which these traffic statistics are based. All ASNs are either a direct peer on #[a(href='https://www.peeringdb.com/ix/4282') DD-IX] or a direct transit customer of a peer.
+
+table.ui.celled.table
+  thead
+    tr
+      th ASN
+      th Organisation
+  tbody
+    each asn, meta in local_asn
+        tr
+          td.value {{ asn }}
+          td {{ meta.org }}
+
+h2 Traffic Savings at DD-IX
+
+p Based on the traffic statistics provided by our peers, the following table presents the minimum amount of traffic your ASes listed therein would save by #[a(href='https://dd-ix.net/peering') peering directly at DD-IX].
+
+table.ui.celled.table
+  thead
+    tr
+      th ASN
+      th Organisation
+      th P95 #[sub in]
+      th P95 #[sub out]
+  tbody
+    if totals:
+      each asn, stats in remote_asn
+        tr
+          td.value {{ asn }}
+          td {{ stats.org }}
+          td.value {{ stats.in_p95_si }}
+          td.value {{ stats.out_p95_si }}
+      tr
+        td(colspan="2", style="text-align: right; font-weight: bold") &sum;
+        td.total.value {{ totals.in_p95_si }}
+        td.total.value {{ totals.out_p95_si }}
+    else
+      each asn, stats in remote_asn
+        tr
+          td.value {{ asn }}
+          td {{ stats.org }}
+          td.total.value {{ stats.in_p95_si }}
+          td.total.value {{ stats.out_p95_si }}
