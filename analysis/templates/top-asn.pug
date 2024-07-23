@@ -21,17 +21,14 @@ style(lang="css").
   }
   @page {
     @bottom-center{
-        content: url(file:///{{ logo_path }});
+        content: url(templates/assets/logo.svg);
+        margin: 0.25em;
     }
   }
   #sidebar {
     border-top: 0.25in solid #209680;
     color: white;
   }
-
-img(style="width:00px; display:block; margin:0 auto;"
-    src="file:///{{ logo_path }}")
-
 
 #sidebar: p DD-IX Dresden Internet Exchange | ASN Traffic Analysis | {{ ts_from }} &ndash; {{ ts_to }}
 

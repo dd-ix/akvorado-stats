@@ -5,6 +5,7 @@ import datetime
 from pdf_reports import pug_to_html, write_report
 import fsspec
 import math
+import os
 import yaml
 
 P95_CUT_OFF = 10_000_000
@@ -91,7 +92,6 @@ for asn in remote_asn.keys():
 
 # prepare pug variables
 pug_globals = {
-  "logo_path": "/home/thomas/src/akvorado-stats/analysis/ddix-logo.svg",
   "local_asn": sorted({**local_asn, **peer_asn}.items(), key=lambda i: i[0]),
   "ts_from": time_range[0].strftime("%Y-%m-%d"),
   "ts_to": time_range[1].strftime("%Y-%m-%d"),
@@ -151,4 +151,4 @@ html = pug_to_html("templates/top-asn.pug",
                    p95_cut_off=P95_CUT_OFF,
                    remote_asn=sorted(remote_asn.items(), key=lambda i: i[1]["in_p95"] + i[1]["out_p95"], reverse=True),
                    **pug_globals)
-write_report(html, "report.pdf")
+write_report(html=html, target="report.pdf", base_url=os.getcwd())
