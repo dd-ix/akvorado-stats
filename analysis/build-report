@@ -6,15 +6,23 @@ from pdf_reports import pug_to_html, write_report
 import fsspec
 import math
 import os
+from pathlib import Path
+import re
 import yaml
+
+source_dir = Path(__file__).resolve().parent
 
 P95_CUT_OFF = 10_000_000
 SI_PREFIXES = ["", "K", "M", "G"]
 SIBLING_ASN_SOURCES = {
   "Akamai": "https://raw.githubusercontent.com/SecOps-Institute/Akamai-ASN-and-IPs-List/master/akamai_asn_list.lst",
+  "Amazon": f"{source_dir}/siblings/amazon-asn.lst",
+  "Apple": f"{source_dir}/siblings/apple-asn.lst",
   "DigitalOcean": "https://raw.githubusercontent.com/SecOps-Institute/Digitalocean-ASN-and-IPs-List/master/digitalocean_asn_list.lst",
   "Facebook": "https://raw.githubusercontent.com/SecOps-Institute/FacebookIPLists/master/facebook_asn_list.lst",
+  "Google": f"{source_dir}/siblings/google-asn.lst",
   "LinkedIn": "https://raw.githubusercontent.com/SecOps-Institute/LinkedInIPLists/master/linkedin_asn_list.lst",
+  "Microsoft": f"{source_dir}/siblings/microsoft-asn.lst",
 }
 
 def format_bps(n):
@@ -24,6 +32,10 @@ def format_bps(n):
   idx = max(0, min(len(SI_PREFIXES) - 1, int(math.floor(0 if n == 0 else math.log10(abs(n)) / 3))))
 
   return "{:.1f}&thinsp;{}bps".format(n / 10 ** (3 * idx), SI_PREFIXES[idx])
+
+def slugify(s):
+  s = re.sub(r'[^\w\s-]', '', s)
+  return re.sub(r'[-\s]+', '-', s).strip('-_')
 
 parser = argparse.ArgumentParser(
     description="Akvorado Traffic Analysis Report Builder")
@@ -115,7 +127,7 @@ if args.individual:
     for s in sibling_asn:
       if asn in s:
         siblings = s
-        seen_siblings.append(siblings)
+        seen_siblings.extend(siblings)
         break
 
     # remote asn listed in this report
@@ -141,7 +153,7 @@ if args.individual:
                    remote_asn=sorted(report_asn.items(), key=lambda i: i[0], reverse=True),
                    totals=totals,
                    **pug_globals)
-    write_report(html, f"as{asn}.pdf")
+    write_report(html, f"DDIX_AS{asn}_{slugify(remote_asn[asn]['org'])}.pdf")
 
 # remove ASN below P95 cut-off
 for asn in cut_off_asn:
@@ -151,4 +163,4 @@ html = pug_to_html("templates/top-asn.pug",
                    p95_cut_off=P95_CUT_OFF,
                    remote_asn=sorted(remote_asn.items(), key=lambda i: i[1]["in_p95"] + i[1]["out_p95"], reverse=True),
                    **pug_globals)
-write_report(html=html, target="report.pdf", base_url=os.getcwd())
+write_report(html=html, target="DDIX_Top-ASN.pdf", base_url=os.getcwd())
