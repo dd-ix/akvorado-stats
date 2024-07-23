@@ -39,8 +39,10 @@ for fn in args.files:
         if f"in_{metric}" in stats:
           in_value = stats[f"in_{metric}"]
           out_value = stats[f"out_{metric}"]
-          
-          if in_value >= out_value:
+
+          if in_value == 0 or out_value == 0:
+            ratio = '-'
+          elif in_value >= out_value:
             ratio = "{:.1f}:1".format(in_value/out_value)
           else:
             ratio = "1:{:.1f}".format(out_value/in_value)
