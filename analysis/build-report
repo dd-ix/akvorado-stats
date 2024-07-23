@@ -24,6 +24,7 @@ parser.add_argument("files", nargs="+", help="list of yaml statistics files")
 args = parser.parse_args()
 time_range = [None, None]
 local_asn = {}
+peer_asn = {}
 remote_asn = {}
 
 # parse yaml statistics files
@@ -40,15 +41,20 @@ for fn in args.files:
 
     # get start of time range
     meta["from"] = datetime.datetime.fromisoformat(meta["from"])
-    if time_range[0] is None or time_range[0] < meta["from"]:
+    if time_range[0] is None or time_range[0] > meta["from"]:
       time_range[0] = meta["from"]
 
     # get end of time range
     meta["to"] = datetime.datetime.fromisoformat(meta["to"])
-    if time_range[1] is None or time_range[1] > meta["to"]:
+    if time_range[1] is None or time_range[1] < meta["to"]:
       time_range[1] = meta["to"]
 
-    local_asn[meta["asn"]] = meta
+    peer_asn[meta["asn"]] = meta
+
+    # keep local_asn list
+    if 'local_asn' in data:
+      for asn, org in data['local_asn'].items():
+        local_asn[asn] = {"org": org}
 
     # record peer stats
     for asn, stats in data["top_peers"].items():
@@ -61,12 +67,9 @@ for fn in args.files:
           if metric != "org":
             remote_asn[asn][metric] += stats[metric]
 
-# calculate data points coverage
-for asn, meta in local_asn.items():
-  local_asn[asn]["coverage"] = "{: 0.1f}".format(100*(time_range[1] - time_range[0]) / (meta["to"] - meta["from"]))
-
-  # drop remote stats of local_asn
-  del(remote_asn[asn])
+  # drop remote stats of peer_asn
+  if asn in remote_asn:
+    del(remote_asn[asn])
 
 # format p95 values
 cut_off_asn = []
@@ -84,9 +87,8 @@ for asn in cut_off_asn:
 html = pug_to_html("templates/report.pug",
                    p95_cut_off=P95_CUT_OFF,
                    logo_path="/home/thomas/src/akvorado-stats/analysis/ddix-logo.svg",
-                   local_asn=sorted(local_asn.items(), key=lambda i: i[0]),
+                   local_asn=sorted({**local_asn, **peer_asn}.items(), key=lambda i: i[0]),
                    remote_asn=sorted(remote_asn.items(), key=lambda i: i[1]["in_p95"] + i[1]["out_p95"], reverse=True),
                    ts_from=time_range[0].strftime("%Y-%m-%d"),
                    ts_to=time_range[1].strftime("%Y-%m-%d"))
-print(html)
 write_report(html, "report.pdf")

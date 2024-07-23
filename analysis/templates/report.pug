@@ -25,7 +25,7 @@ style(lang="css").
     }
   }
   #sidebar {
-    border-top: 0.25in solid rgb(102, 170, 0);
+    border-top: 0.25in solid #209680;
     color: white;
   }
 
@@ -41,36 +41,36 @@ h1 ASN Traffic Analysis
 
 p This report shows the traffic statistics of peers at #[a(href='https://dd-ix.net') DD-IX Dresden Internet Exchange] with notable destination ASN. The analysis covers the time range from #[code {{ ts_from }}] to #[code {{ ts_to }}].
 
-h2 Local ASN
+h2 DD-IX Peers ASN
 
-p The following table contains the list of connected ASN at [DD-IX](https://www.peeringdb.com/ix/4282) which are providing traffic statistics. The coverage value refers to to the evaluation period.
+p The following list contains all ASNs on which these traffic statistics are based. All ASNs are either a direct peer on #[a(href='https://www.peeringdb.com/ix/4282') DD-IX] or a direct transit customer of a peer.
 
 table.ui.celled.table
   thead
     tr
       th ASN
       th Organisation
-      th Coverage
   tbody
     each asn, meta in local_asn
         tr
-          td {{ asn }}
+          td.value {{ asn }}
           td {{ meta.org }}
-          td.value {{ meta.coverage }}&thinsp;%
 
 h2 Top Destination ASN
+
+p Based on the traffic statistics provided by our peers, the following table presents the minimum amount of traffic each ASes listed therein would save by #[a(href='https://dd-ix.net/peering') peering directly at DD-IX].
 
 table.ui.celled.table
   thead
     tr
       th ASN
       th Organisation
-      th &sum; P95 #[sub in]
-      th &sum; P95 #[sub out]
+      th P95 #[sub in]
+      th P95 #[sub out]
   tbody
     each asn, stats in remote_asn
         tr
-          td {{ asn }}
+          td.value {{ asn }}
           td {{ stats.org }}
           td.value {{ stats.in_p95_si }}
           td.value {{ stats.out_p95_si }}
