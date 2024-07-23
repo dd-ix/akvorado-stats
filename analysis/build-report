@@ -150,7 +150,7 @@ if args.individual:
 
     # generate single asn report
     html = pug_to_html("templates/single-asn.pug",
-                   remote_asn=sorted(report_asn.items(), key=lambda i: i[0], reverse=True),
+                   remote_asn=sorted(report_asn.items(), key=lambda i: i[0]),
                    totals=totals,
                    **pug_globals)
     write_report(html, f"DDIX_AS{asn}_{slugify(remote_asn[asn]['org'])}.pdf")
