@@ -98,9 +98,8 @@ cut_off_asn = []
 for asn in remote_asn.keys():
   if remote_asn[asn]["in_p95"] < P95_CUT_OFF or remote_asn[asn]["out_p95"] < P95_CUT_OFF:
     cut_off_asn.append(asn)
-  else:
-    for k in ["in_p95", "out_p95"]:
-      remote_asn[asn][f"{k}_si"] = format_bps(remote_asn[asn][k])
+  for k in ["in_p95", "out_p95"]:
+    remote_asn[asn][f"{k}_si"] = format_bps(remote_asn[asn][k])
 
 # prepare pug variables
 pug_globals = {
