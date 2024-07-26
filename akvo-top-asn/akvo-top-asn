@@ -163,24 +163,44 @@ def get_connection(config):
 
 
 def query_clickhouse(time_range, direction):
-    query = f"""
-        WITH
-        source AS (SELECT * FROM flows_5m0s SETTINGS asterisk_include_alias_columns = 1),
-        rows AS (SELECT SrcAS FROM source WHERE TimeReceived BETWEEN toDateTime('{time_range[0]}', 'UTC') AND toDateTime('{time_range[1]}', 'UTC') AND (InIfBoundary = 'external') GROUP BY SrcAS ORDER BY SUM(Bytes) DESC LIMIT 50)
-        SELECT 1 AS axis, * FROM (
-        SELECT
-        toStartOfInterval(TimeReceived + INTERVAL 900 second, INTERVAL 900 second) - INTERVAL 900 second AS time,
-        SUM(Bytes*SamplingRate*8)/900 AS xps,
-        if((SrcAS) IN rows, [concat(toString(SrcAS), ': ', dictGetOrDefault('asns', 'name', SrcAS, '???'))], ['0: Other']) AS dimensions
-        FROM source
-        WHERE TimeReceived BETWEEN toDateTime('{time_range[0]}', 'UTC') AND toDateTime('{time_range[1]}', 'UTC') AND ({direction}IfBoundary = 'external')
-        GROUP BY time, dimensions
-        ORDER BY time WITH FILL
-        FROM toDateTime('{time_range[0]}', 'UTC')
-        TO toDateTime('{time_range[1]}', 'UTC') + INTERVAL 1 second
-        STEP 900
-        INTERPOLATE (dimensions AS ['0: Other']))
-        """
+    if direction == "Out":
+       query = f"""
+            WITH
+            source AS (SELECT * FROM flows_5m0s SETTINGS asterisk_include_alias_columns = 1),
+            rows AS (SELECT DstAS FROM source WHERE TimeReceived BETWEEN toDateTime('{time_range[0]}', 'UTC') AND toDateTime('{time_range[1]}', 'UTC') AND (OutIfBoundary = 'external') GROUP BY DstAS ORDER BY SUM(Bytes) DESC LIMIT 50)
+            SELECT 1 AS axis, * FROM (
+            SELECT
+            toStartOfInterval(TimeReceived + INTERVAL 300 second, INTERVAL 300 second) - INTERVAL 300 second AS time,
+            SUM(Bytes*SamplingRate*8)/300 AS xps,
+            if((DstAS) IN rows, [concat(toString(DstAS), ': ', dictGetOrDefault('asns', 'name', DstAS, '???'))], ['0: Other']) AS dimensions
+            FROM source
+            WHERE TimeReceived BETWEEN toDateTime('{time_range[0]}', 'UTC') AND toDateTime('{time_range[1]}', 'UTC') AND (OutIfBoundary = 'external')
+            GROUP BY time, dimensions
+            ORDER BY time WITH FILL
+            FROM toDateTime('{time_range[0]}', 'UTC')
+            TO toDateTime('{time_range[1]}', 'UTC') + INTERVAL 1 second
+            STEP 900
+            INTERPOLATE (dimensions AS ['0: Other']))
+            """
+    else:
+        query = f"""
+            WITH
+            source AS (SELECT * FROM flows_5m0s SETTINGS asterisk_include_alias_columns = 1),
+            rows AS (SELECT SrcAS FROM source WHERE TimeReceived BETWEEN toDateTime('{time_range[0]}', 'UTC') AND toDateTime('{time_range[1]}', 'UTC') AND (InIfBoundary = 'external') GROUP BY SrcAS ORDER BY SUM(Bytes) DESC LIMIT 50)
+            SELECT 1 AS axis, * FROM (
+            SELECT
+            toStartOfInterval(TimeReceived + INTERVAL 900 second, INTERVAL 900 second) - INTERVAL 900 second AS time,
+            SUM(Bytes*SamplingRate*8)/900 AS xps,
+            if((SrcAS) IN rows, [concat(toString(SrcAS), ': ', dictGetOrDefault('asns', 'name', SrcAS, '???'))], ['0: Other']) AS dimensions
+            FROM source
+            WHERE TimeReceived BETWEEN toDateTime('{time_range[0]}', 'UTC') AND toDateTime('{time_range[1]}', 'UTC') AND (InIfBoundary = 'external')
+            GROUP BY time, dimensions
+            ORDER BY time WITH FILL
+            FROM toDateTime('{time_range[0]}', 'UTC')
+            TO toDateTime('{time_range[1]}', 'UTC') + INTERVAL 1 second
+            STEP 900
+            INTERPOLATE (dimensions AS ['0: Other']))
+            """
 
     logger.debug("clickhouse query: %s", query)
     return client.query(query).result_rows
