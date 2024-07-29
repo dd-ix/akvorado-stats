@@ -36,7 +36,7 @@ RemainAfterExit=yes
 Description=Akvorado Top ASN Collection Timer
 
 [Timer]
-OnCalendar=weekly
+OnCalendar=daily
 Persistent=true
 
 [Install]
@@ -46,5 +46,5 @@ WantedBy=timers.target
 ### CronJob
 
 ```
-0 0 * * 0 /usr/src/akvorado-stats/akvo-top-asn/akvo-top-asn --config=/usr/src/akvorado-stats/akvorado-top-asn/akvo-top-asn.conf --upload
+0 0 * * * /usr/src/akvorado-stats/akvo-top-asn/akvo-top-asn --config=/usr/src/akvorado-stats/akvorado-top-asn/akvo-top-asn.conf --upload
 ```
