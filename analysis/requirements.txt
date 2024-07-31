@@ -3,3 +3,4 @@ fsspec
 pdf_reports
 PyYAML
 requests
+weasyprint
