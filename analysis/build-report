@@ -40,6 +40,7 @@ def slugify(s):
 parser = argparse.ArgumentParser(
     description="Akvorado Traffic Analysis Report Builder")
 parser.add_argument("-i","--individual", action="store_true", help="generate individual reports")
+parser.add_argument("-w","--watermark", type=str, default="example", help="watermark text (default: example)")
 parser.add_argument("--cache", type=str, default=".cache", help="caching directory (default: .cache)")
 parser.add_argument("files", nargs="+", help="list of yaml statistics files")
 
@@ -110,6 +111,7 @@ pug_globals = {
   "local_asn": sorted({**local_asn, **peer_asn}.items(), key=lambda i: i[0]),
   "ts_from": time_range[0].strftime("%Y-%m-%d"),
   "ts_to": time_range[1].strftime("%Y-%m-%d"),
+  "watermark": args.watermark,
 }
 
 # create individual asn stats

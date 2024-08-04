@@ -3,17 +3,16 @@ style(lang="css").
     page-break-before: always;
   }
   .watermark {
-    transform: rotate(331deg);
+    transform: rotate(331deg) translate(-50%, -50%);
+    transform-origin: top left;
     font-size: 12em;
     font-weight: bold;
     text-transform: uppercase;
+    text-align: center;
     color: rgba(255, 5, 5, 0.17);
     position: fixed;
-    top: 30%;
-    bottom: 30%;
-    left: 10%;
-    right: 10%;
-    text-align: center;
+    top: 50%;
+    left: 52%;
   }
   .value {
     font-family: mono;
@@ -36,7 +35,7 @@ style(lang="css").
 
 #sidebar: p DD-IX Dresden Internet Exchange | ASN Traffic Analysis | {{ ts_from }} &ndash; {{ ts_to }}
 
-p.watermark T e s t
+p.watermark {{ watermark }}
 
 h1 ASN Traffic Analysis
 
