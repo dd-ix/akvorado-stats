@@ -3,4 +3,4 @@ fsspec
 pdf_reports
 PyYAML
 requests
-weasyprint
+weasyprint<57
