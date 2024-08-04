@@ -80,6 +80,10 @@ for fn in args.files:
 
     # record peer stats
     for asn, stats in data["top_peers"].items():
+      # skip statistics with zero values
+      if 0 in stats.values():
+        continue
+
       if asn not in remote_asn:
         remote_asn[asn] = stats
         remote_asn[asn]["local_peers"] = 1
