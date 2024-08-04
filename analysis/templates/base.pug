@@ -1,0 +1,47 @@
+html
+  header
+    title #{ title }
+    meta(name='author' content='{{ org_name }}')
+    meta(name='generator' content='akvorado-stats')
+
+    style(lang="css").
+      .break {
+        page-break-before: always;
+      }
+      .watermark {
+        transform: rotate(331deg) translate(-50%, -50%);
+        transform-origin: top left;
+        font-size: 12em;
+        font-weight: bold;
+        text-transform: uppercase;
+        text-align: center;
+        color: rgba(255, 5, 5, 0.17);
+        position: fixed;
+        top: 50%;
+        left: 52%;
+      }
+      .value {
+        font-family: mono;
+        text-align: right;
+      }
+      .total {
+        color: #209680;
+        font-weight: bold;
+      }
+      @page {
+        @bottom-center{
+            content: url(templates/assets/logo.svg);
+            margin: 0.25em;
+        }
+      }
+      #sidebar {
+        border-top: 0.25in solid #209680;
+        color: white;
+      }
+
+body
+  #sidebar: p {{ org_name }} | ASN Traffic Analysis | {{ ts_from }} &ndash; {{ ts_to }}
+
+  p.watermark {{ watermark }}
+
+  block content

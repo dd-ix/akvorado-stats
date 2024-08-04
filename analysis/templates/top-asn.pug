@@ -1,72 +1,42 @@
-style(lang="css").
-  .break {
-    page-break-before: always;
-  }
-  .watermark {
-    transform: rotate(331deg) translate(-50%, -50%);
-    transform-origin: top left;
-    font-size: 12em;
-    font-weight: bold;
-    text-transform: uppercase;
-    text-align: center;
-    color: rgba(255, 5, 5, 0.17);
-    position: fixed;
-    top: 50%;
-    left: 52%;
-  }
-  .value {
-    font-family: mono;
-    text-align: right;
-  }
-  @page {
-    @bottom-center{
-        content: url(templates/assets/logo.svg);
-        margin: 0.25em;
-    }
-  }
-  #sidebar {
-    border-top: 0.25in solid #209680;
-    color: white;
-  }
+- var title = "ASN Traffic Analysis";
 
-#sidebar: p DD-IX Dresden Internet Exchange | ASN Traffic Analysis | {{ ts_from }} &ndash; {{ ts_to }}
+extends base.pug
 
-p.watermark {{ watermark }}
+block content
+  h1= title
 
-h1 ASN Traffic Analysis
+  p This report shows the traffic statistics of peers at #[a(href='{{ org_url }}') {{ org_name }}] with notable destination ASN. The analysis covers the time range from #[code {{ ts_from }}] to #[code {{ ts_to }}].
 
-p This report shows the traffic statistics of peers at #[a(href='https://dd-ix.net') DD-IX Dresden Internet Exchange] with notable destination ASN. The analysis covers the time range from #[code {{ ts_from }}] to #[code {{ ts_to }}].
+  h2 {{ org_slug }} Peers ASN
 
-h2 DD-IX Peers ASN
+  p The following list contains all ASNs on which these traffic statistics are based. All ASNs are either a direct peer on #[a(href='https://www.peeringdb.com/ix/4282') {{ org_slug }}] or a direct transit customer of a peer.
 
-p The following list contains all ASNs on which these traffic statistics are based. All ASNs are either a direct peer on #[a(href='https://www.peeringdb.com/ix/4282') DD-IX] or a direct transit customer of a peer.
+  table.ui.celled.table
+    thead
+      tr
+        th ASN
+        th Organisation
+    tbody
+      each asn, meta in local_asn
+          tr
+            td.value {{ asn }}
+            td {{ meta.org }}
 
-table.ui.celled.table
-  thead
-    tr
-      th ASN
-      th Organisation
-  tbody
-    each asn, meta in local_asn
-        tr
-          td.value {{ asn }}
-          td {{ meta.org }}
+  h2 Traffic Savings at {{ org_slug }}
 
-h2 Traffic Savings at DD-IX
+  p Based on the traffic statistics provided by our peers, the following table presents the minimum amount of traffic each ASes listed therein would save by #[a(href='{{ org_url }}/peering') peering directly at {{ org_slug }}].
 
-p Based on the traffic statistics provided by our peers, the following table presents the minimum amount of traffic each ASes listed therein would save by #[a(href='https://dd-ix.net/peering') peering directly at DD-IX].
-
-table.ui.celled.table
-  thead
-    tr
-      th ASN
-      th Organisation
-      th P95 #[sub in]
-      th P95 #[sub out]
-  tbody
-    each asn, stats in remote_asn
-        tr
-          td.value {{ asn }}
-          td {{ stats.org }}
-          td.value {{ stats.in_p95_si }}
-          td.value {{ stats.out_p95_si }}
+  table.ui.celled.table
+    thead
+      tr
+        th ASN
+        th Organisation
+        th P95 #[sub in]
+        th P95 #[sub out]
+    tbody
+      each asn, stats in remote_asn
+          tr
+            td.value {{ asn }}
+            td {{ stats.org }}
+            td.value {{ stats.in_p95_si }}
+            td.value {{ stats.out_p95_si }}

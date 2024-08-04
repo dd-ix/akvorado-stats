@@ -39,9 +39,12 @@ def slugify(s):
 
 parser = argparse.ArgumentParser(
     description="Akvorado Traffic Analysis Report Builder")
-parser.add_argument("-i","--individual", action="store_true", help="generate individual reports")
-parser.add_argument("-w","--watermark", type=str, default="example", help="watermark text (default: example)")
 parser.add_argument("--cache", type=str, default=".cache", help="caching directory (default: .cache)")
+parser.add_argument("-i","--individual", action="store_true", help="generate individual reports")
+parser.add_argument("-n","--name", type=str, default="DD-IX Dresden Internet Exchange", help="org long name (default: DD-IX)")
+parser.add_argument("-s","--slug", type=str, default="DD-IX", help="org short name (default: DD-IX)")
+parser.add_argument("-u","--url", type=str, default="https://dd-ix.net", help="org url (default: https://dd-ix.net)")
+parser.add_argument("-w","--watermark", type=str, default="example", help="watermark text (default: example)")
 parser.add_argument("files", nargs="+", help="list of yaml statistics files")
 
 args = parser.parse_args()
@@ -111,8 +114,14 @@ pug_globals = {
   "local_asn": sorted({**local_asn, **peer_asn}.items(), key=lambda i: i[0]),
   "ts_from": time_range[0].strftime("%Y-%m-%d"),
   "ts_to": time_range[1].strftime("%Y-%m-%d"),
+  "org_slug": args.slug,
+  "org_name": args.name,
+  "org_url": args.url,
   "watermark": args.watermark,
 }
+
+# prepare filename prefix from org slug
+fn_prefix = re.sub('\W', '', args.slug)
 
 # create individual asn stats
 if args.individual:
@@ -158,7 +167,7 @@ if args.individual:
                    remote_asn=sorted(report_asn.items(), key=lambda i: i[0]),
                    totals=totals,
                    **pug_globals)
-    write_report(html, f"DDIX_AS{asn}_{slugify(remote_asn[asn]['org'])}.pdf")
+    write_report(html, f"{fn_prefix}_AS{asn}_{slugify(remote_asn[asn]['org'])}.pdf")
 
 # remove ASN below P95 cut-off
 for asn in cut_off_asn:
@@ -168,4 +177,4 @@ html = pug_to_html("templates/top-asn.pug",
                    p95_cut_off=P95_CUT_OFF,
                    remote_asn=sorted(remote_asn.items(), key=lambda i: i[1]["in_p95"] + i[1]["out_p95"], reverse=True),
                    **pug_globals)
-write_report(html=html, target="DDIX_Top-ASN.pdf", base_url=os.getcwd())
+write_report(html=html, target=f"{fn_prefix}_Top-ASN.pdf", base_url=os.getcwd())
